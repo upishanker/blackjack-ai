@@ -128,12 +128,12 @@ void watchAIPlay(QLearningAI& ai) {
 
 void loadQTable(QLearningAI& ai) {
     string filename;
-    cout << "\nEnter filename to load (default: data/q_table.csv): ";
+    cout << "\nEnter filename to load (default: ../data/q_table.csv): ";
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, filename);
 
     if (filename.empty()) {
-        filename = "data/q_table.csv";
+        filename = "../data/q_table.csv";
     }
 
     ai.loadQTable(filename);
@@ -141,12 +141,12 @@ void loadQTable(QLearningAI& ai) {
 
 void saveQTable(QLearningAI& ai) {
     string filename;
-    cout << "\nEnter filename to save (default: data/q_table.csv): ";
+    cout << "\nEnter filename to save (default: ../data/q_table.csv): ";
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, filename);
 
     if (filename.empty()) {
-        filename = "data/q_table.csv";
+        filename = "../data/q_table.csv";
     }
 
     ai.saveQTable(filename);
@@ -193,12 +193,12 @@ void evaluateMonteCarloMode(MonteCarloAI& ai) {
 
 void loadMonteCarloQTable(MonteCarloAI& ai) {
     string filename;
-    cout << "\nEnter filename to load (default: data/mc_q_table.csv): ";
+    cout << "\nEnter filename to load (default: ../data/mc_q_table.csv): ";
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, filename);
 
     if (filename.empty()) {
-        filename = "data/mc_q_table.csv";
+        filename = "../data/mc_q_table.csv";
     }
 
     ai.loadQTable(filename);
@@ -206,12 +206,12 @@ void loadMonteCarloQTable(MonteCarloAI& ai) {
 
 void saveMonteCarloQTable(MonteCarloAI& ai) {
     string filename;
-    cout << "\nEnter filename to save (default: data/mc_q_table.csv): ";
+    cout << "\nEnter filename to save (default: ../data/mc_q_table.csv): ";
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, filename);
 
     if (filename.empty()) {
-        filename = "data/mc_q_table.csv";
+        filename = "../data/mc_q_table.csv";
     }
 
     ai.saveQTable(filename);
@@ -342,10 +342,10 @@ int main() {
 
     // Try to load existing Q-tables on startup
     cout << "Attempting to load existing Q-Learning Q-table...\n";
-    qLearningAI.loadQTable("data/q_table.csv");
+    qLearningAI.loadQTable("../data/q_table.csv");
 
     cout << "Attempting to load existing Monte Carlo Q-table...\n";
-    monteCarloAI.loadQTable("data/mc_q_table.csv");
+    monteCarloAI.loadQTable("../data/mc_q_table.csv");
 
     int choice;
     bool running = true;
@@ -419,14 +419,14 @@ int main() {
                 char saveQ;
                 cin >> saveQ;
                 if (saveQ == 'y' || saveQ == 'Y') {
-                    qLearningAI.saveQTable("data/q_table.csv");
+                    qLearningAI.saveQTable("../data/q_table.csv");
                 }
 
                 cout << "Save Monte Carlo Q-table before exiting? (y/n): ";
                 char saveMC;
                 cin >> saveMC;
                 if (saveMC == 'y' || saveMC == 'Y') {
-                    monteCarloAI.saveQTable("data/mc_q_table.csv");
+                    monteCarloAI.saveQTable("../data/mc_q_table.csv");
                 }
 
                 cout << "\nThanks for playing Blackjack with AI!\n";
