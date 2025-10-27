@@ -1,0 +1,13 @@
+//
+// Created by Upi Shanker on 10/26/2025.
+//
+
+#ifndef BLACKJACK_AI_BLACKJACKGUI_H
+#define BLACKJACK_AI_BLACKJACKGUI_H
+
+
+class BlackjackGUI {
+};
+
+
+#endif //BLACKJACK_AI_BLACKJACKGUI_H
