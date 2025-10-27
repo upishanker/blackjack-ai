@@ -5,30 +5,12 @@
 #ifndef BLACKJACK_AI_QLEARNINGAI_H
 #define BLACKJACK_AI_QLEARNINGAI_H
 
+#include "AITypes.h"
 #include <unordered_map>
 #include <array>
 #include <string>
 #include <random>
 
-enum class Action { HIT = 0, STAND = 1 };
-
-struct State {
-    int playerSum;      // 4-21
-    int dealerUpcard;   // 2-11 (Ace=11)
-    bool usableAce;     // Can count an Ace as 11 without busting
-
-    bool operator==(const State& other) const {
-        return playerSum == other.playerSum &&
-               dealerUpcard == other.dealerUpcard &&
-               usableAce == other.usableAce;
-    }
-};
-
-struct StateHash {
-    size_t operator()(const State& s) const {
-        return ((s.playerSum - 4) * 20 + (s.dealerUpcard - 2) * 2 + s.usableAce);
-    }
-};
 
 class QLearningAI {
 private:

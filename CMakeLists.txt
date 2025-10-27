@@ -33,6 +33,8 @@ set(CORE_SOURCES
         src/core/Player.cpp
         src/core/Dealer.cpp
         src/core/Game.cpp
+        src/ai/QLearningAI.cpp
+        src/ai/MonteCarloAI.cpp
 )
 
 # AI source files

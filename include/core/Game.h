@@ -9,6 +9,7 @@
 #include "Player.h"
 #include "Dealer.h"
 #include "../ai/QLearningAI.h"
+#include "../ai/MonteCarloAI.h"
 #include <vector>
 #include <string>
 
@@ -41,12 +42,12 @@ public:
 
     // AI Training
     void trainAI(QLearningAI& ai, int numEpisodes, bool verbose = false);
-
-    // AI vs Dealer (single episode for training)
     double playAIEpisode(QLearningAI& ai, bool training = true);
-
-    // Evaluate AI performance
     void evaluateAI(QLearningAI& ai, int numGames);
+
+    void trainMonteCarlo(MonteCarloAI& ai, int numEpisodes, bool verbose = false);
+    double playMonteCarloEpisode(MonteCarloAI& ai, bool training = true);
+    void evaluateMonteCarlo(MonteCarloAI& ai, int numGames);
 };
 
 #endif //BLACKJACK_AI_GAME_H

@@ -306,11 +306,125 @@ void Game::evaluateAI(QLearningAI& ai, int numGames) {
     int wins = 0, losses = 0, pushes = 0;
     double totalReward = 0.0;
 
-    // Save current epsilon and set to 0 (pure exploitation)
-    double oldEpsilon = 0.0; // We'll use getBestAction directly
 
     for (int game = 0; game < numGames; ++game) {
         double reward = playAIEpisode(ai, false); // training=false uses greedy policy
+
+        totalReward += reward;
+
+        if (reward > 0) wins++;
+        else if (reward < 0) losses++;
+        else pushes++;
+    }
+
+    cout << "\nResults over " << numGames << " games:\n";
+    cout << "Wins: " << wins << " (" << (100.0 * wins / numGames) << "%)\n";
+    cout << "Losses: " << losses << " (" << (100.0 * losses / numGames) << "%)\n";
+    cout << "Pushes: " << pushes << " (" << (100.0 * pushes / numGames) << "%)\n";
+    cout << "Average Reward: " << (totalReward / numGames) << "\n";
+    cout << "Win Rate: " << fixed << setprecision(2)
+         << (100.0 * wins / (wins + losses)) << "%\n\n";
+}
+
+double Game::playMonteCarloEpisode(MonteCarloAI& ai, bool training) {
+    initializeGame();
+
+    Player aiPlayer("AI", false);
+    aiPlayer.addCard(deck.dealCard());
+    aiPlayer.addCard(deck.dealCard());
+
+    dealer.addCard(deck.dealCard());
+    dealer.addCard(deck.dealCard());
+
+    if (training) {
+        ai.startEpisode();
+    }
+
+    // AI's turn
+    while (!aiPlayer.isBusted() && aiPlayer.getHandValue() < 21) {
+        State currentState = getAIState(aiPlayer);
+
+        Action action = training ? ai.chooseAction(currentState) : ai.getBestAction(currentState);
+
+        if (action == Action::STAND) {
+            if (training) {
+                ai.recordStep(currentState, action, 0.0);
+            }
+            break;
+        }
+
+        // HIT
+        if (training) {
+            ai.recordStep(currentState, action, -0.01); // Small step penalty
+        }
+
+        aiPlayer.addCard(deck.dealCard());
+
+        if (aiPlayer.isBusted()) {
+            if (training) {
+                ai.endEpisode(-1.0);
+            }
+            return -1.0;
+        }
+    }
+
+    // Dealer's turn
+    dealer.playTurn(deck);
+
+    // Calculate final reward
+    double reward = calculateReward(aiPlayer);
+
+    if (training) {
+        ai.endEpisode(reward);
+    }
+
+    return reward;
+}
+
+void Game::trainMonteCarlo(MonteCarloAI& ai, int numEpisodes, bool verbose) {
+    cout << "\n=== Training Monte Carlo AI ===\n";
+    cout << "Episodes: " << numEpisodes << "\n\n";
+
+    int wins = 0, losses = 0, pushes = 0;
+    double totalReward = 0.0;
+
+    for (int episode = 0; episode < numEpisodes; ++episode) {
+        double reward = playMonteCarloEpisode(ai, true);
+
+        totalReward += reward;
+
+        if (reward > 0) wins++;
+        else if (reward < 0) losses++;
+        else pushes++;
+
+        ai.decayEpsilon();
+
+        if (verbose && (episode + 1) % (numEpisodes / 10) == 0) {
+            cout << "Episode " << (episode + 1) << "/" << numEpisodes
+                 << " | Wins: " << wins << " | Losses: " << losses
+                 << " | Pushes: " << pushes
+                 << " | Avg Reward: " << fixed << setprecision(3)
+                 << (totalReward / (episode + 1)) << "\n";
+        }
+    }
+
+    cout << "\n=== Training Complete ===\n";
+    cout << "Total Wins: " << wins << " (" << (100.0 * wins / numEpisodes) << "%)\n";
+    cout << "Total Losses: " << losses << " (" << (100.0 * losses / numEpisodes) << "%)\n";
+    cout << "Total Pushes: " << pushes << " (" << (100.0 * pushes / numEpisodes) << "%)\n";
+    cout << "Average Reward: " << (totalReward / numEpisodes) << "\n\n";
+
+    ai.printStats();
+}
+
+void Game::evaluateMonteCarlo(MonteCarloAI& ai, int numGames) {
+    cout << "\n=== Evaluating Monte Carlo AI (Greedy Policy) ===\n";
+
+    int wins = 0, losses = 0, pushes = 0;
+    double totalReward = 0.0;
+
+    for (int game = 0; game < numGames; ++game) {
+        double reward = playMonteCarloEpisode(ai, false);
 
         totalReward += reward;
 
