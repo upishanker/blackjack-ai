@@ -505,13 +505,28 @@ function renderPolicy() {
 // by devicePixelRatio on every redraw and stretch the chart a little further
 // each time. The CSS height is pinned for the same reason — with width:100% and
 // an auto height, the element's aspect ratio would follow the bitmap.
+// Measures the canvas's laid-out width. A canvas inside a panel that was just
+// unhidden, or one measured before layout has settled, can report 0 — so fall
+// back to the container and let the caller retry rather than drawing nothing.
+function chartWidth(canvas) {
+  const own = Math.round(canvas.getBoundingClientRect().width) || canvas.clientWidth;
+  if (own >= 2) return own;
+
+  const box = canvas.parentElement;
+  if (!box) return 0;
+  // Subtract the container's horizontal padding, which the canvas does not span.
+  const cs = getComputedStyle(box);
+  const pad = parseFloat(cs.paddingLeft || 0) + parseFloat(cs.paddingRight || 0);
+  return Math.max(0, Math.round(box.getBoundingClientRect().width - pad));
+}
+
 function chartCtx(canvas) {
   const dpr = window.devicePixelRatio || 1;
   const h = Number(canvas.dataset.h) || 180;
   canvas.style.height = `${h}px`;
 
-  const w = canvas.clientWidth;
-  if (w < 2) return null;             // panel hidden; nothing meaningful to draw
+  const w = chartWidth(canvas);
+  if (w < 2) return null;             // not laid out yet; drawLine will retry
 
   const bw = Math.round(w * dpr);
   const bh = Math.round(h * dpr);
@@ -534,7 +549,13 @@ function css(name) {
 // these stacked, never one chart with two y-axes.
 function drawLine(canvas, points, accessor, opts) {
   const sized = chartCtx(canvas);
-  if (!sized) return;
+  if (!sized) {
+    // The canvas has no width yet. Come back after the browser has laid out,
+    // instead of leaving a blank box.
+    retryChartsOnce();
+    return;
+  }
+  chartRetriesLeft = 5;   // sized successfully; allow retries again next time
   const { ctx, w, h } = sized;
   const padL = 46, padR = 12, padT = 10, padB = 22;
   const plotW = w - padL - padR;
@@ -617,6 +638,37 @@ function drawLine(canvas, points, accessor, opts) {
   ctx.fill();
 
   ctx.restore();
+}
+
+// One deferred retry, for the case where a chart is asked to draw before the
+// browser has given it a width. Guarded so a genuinely zero-width container
+// can't spin.
+let chartRetry = 0;
+let chartRetriesLeft = 5;
+function retryChartsOnce() {
+  if (chartRetry || chartRetriesLeft <= 0) return;
+  chartRetriesLeft--;
+  chartRetry = requestAnimationFrame(() => {
+    chartRetry = 0;
+    redrawCharts();
+  });
+}
+
+// Draw whenever the charts' container gains or changes width. This covers the
+// first reveal of the training panel, window resizes, and layout settling after
+// fonts load, without any of them needing their own hook.
+function watchChartSize() {
+  if (typeof ResizeObserver !== 'function') return;
+  const box = $('chart-ev').parentElement;
+  if (!box) return;
+  let last = 0;
+  new ResizeObserver((entries) => {
+    const w = Math.round(entries[0].contentRect.width);
+    if (w >= 2 && w !== last) {
+      last = w;
+      redrawCharts();
+    }
+  }).observe(box);
 }
 
 function redrawCharts() {
@@ -903,6 +955,7 @@ async function init() {
   });
 
   setDecider('agent');
+  watchChartSize();
   refreshStatus().then(deal).catch(() => {});
 
   // Measure the benchmark once in the background; the training chart draws it
