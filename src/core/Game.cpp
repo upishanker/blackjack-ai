@@ -226,12 +226,11 @@ double Game::playAIEpisode(QLearningAI& ai, bool training) {
         aiPlayer.addCard(deck.dealCard());
         State nextState = getAIState(aiPlayer);
 
-        if (training) {
-            double stepReward = aiPlayer.isBusted() ? -1.0 : -0.01;
-            ai.updateQValue(currentState, action, stepReward, nextState, aiPlayer.isBusted());
-        }
-
-        // If busted, immediate penalty
+        // Exactly one update per transition. Drawing carries no intrinsic
+        // reward -- the only real reward is the terminal payout, so an
+        // intermediate hit gets 0.0 and its value comes from bootstrapping.
+        // (A per-hit penalty here is not potential-based shaping: it changes
+        // the optimal policy, biasing the agent towards standing.)
         if (aiPlayer.isBusted()) {
             if (training) {
                 ai.updateQValue(currentState, action, -1.0, nextState, true);
@@ -239,7 +238,6 @@ double Game::playAIEpisode(QLearningAI& ai, bool training) {
             return -1.0;
         }
 
-        // Non-terminal step (reward = 0 for intermediate steps)
         if (training) {
             ai.updateQValue(currentState, action, 0.0, nextState, false);
         }
@@ -353,9 +351,10 @@ double Game::playMonteCarloEpisode(MonteCarloAI& ai, bool training) {
             break;
         }
 
-        // HIT
+        // HIT -- no step penalty, for the same reason as playAIEpisode: the
+        // only real reward in blackjack is the terminal payout.
         if (training) {
-            ai.recordStep(currentState, action, -0.01); // Small step penalty
+            ai.recordStep(currentState, action, 0.0);
         }
 
         aiPlayer.addCard(deck.dealCard());
