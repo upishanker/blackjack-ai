@@ -234,7 +234,11 @@ void MonteCarloAI::setGamma(double newGamma) {
 }
 
 void MonteCarloAI::decayEpsilon(double decayRate) {
-    epsilon = std::max(0.01, epsilon * decayRate); // Don't go below 1% exploration
+    // Kept lower than Q-learning's floor on purpose: epsilon-greedy Monte Carlo
+    // control is on-policy, so it converges to the best epsilon-soft policy
+    // rather than the optimal one. More exploration here means a worse greedy
+    // policy to extract, not just wider coverage.
+    epsilon = std::max(0.01, epsilon * decayRate);
 }
 
 int MonteCarloAI::getVisitCount(const State& state, Action action) const {
