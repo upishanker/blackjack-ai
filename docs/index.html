@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackjack RL — policy inspector</title>
+<meta name="description" content="Watch a tabular reinforcement learning agent play blackjack, inspect its learned policy, and train it live. C++ engine, browser readout.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="rail">
+    <header class="brand">
+      <h1>blackjack<span class="brand-dot">·</span>rl</h1>
+      <p class="brand-sub">tabular policy inspector</p>
+    </header>
+
+    <div class="rail-block">
+      <span class="label">Agent</span>
+      <div class="segmented" role="radiogroup" aria-label="Agent">
+        <button class="seg is-on" role="radio" aria-checked="true" data-agent="q">Q-learning</button>
+        <button class="seg" role="radio" aria-checked="false" data-agent="mc">Monte Carlo</button>
+      </div>
+    </div>
+
+    <dl class="readout" id="readout">
+      <div class="readout-row"><dt>episodes</dt><dd id="rd-episodes">—</dd></div>
+      <div class="readout-row"><dt>states learned</dt><dd id="rd-states">—</dd></div>
+      <div class="readout-row"><dt>epsilon</dt><dd id="rd-epsilon">—</dd></div>
+      <div class="readout-row"><dt>q-table</dt><dd id="rd-table">—</dd></div>
+    </dl>
+
+    <p class="rail-note">
+      The table is decoration. The agent sees only
+      <code>(sum, upcard, ace)</code> — never suit, never colour, never which
+      cards have already been dealt.
+    </p>
+
+    <footer class="rail-foot">
+      <span class="engine-dot" id="engine-dot" aria-hidden="true"></span>
+      <span id="engine-state">connecting…</span>
+      <span class="rail-foot-sub">C++17 engine · blackjack_server</span>
+    </footer>
+  </aside>
+
+  <main class="main">
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab is-on" role="tab" aria-selected="true" data-tab="play">Play</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="policy">Policy</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="training">Training</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="compare">Compare</button>
+    </nav>
+
+    <!-- ================= PLAY ================= -->
+    <section class="panel is-on" id="panel-play" role="tabpanel">
+      <div class="play-grid">
+
+        <div class="felt">
+          <div class="felt-inner">
+
+            <div class="seat seat-dealer">
+              <div class="seat-head">
+                <span class="seat-name">Dealer</span>
+                <span class="seat-total" id="dealer-total">—</span>
+              </div>
+              <div class="hand" id="dealer-hand"></div>
+            </div>
+
+            <!-- Table legend, curved along the arc as on a real layout. The
+                 rules quoted here are the ones this engine actually implements. -->
+            <svg class="felt-arc" viewBox="0 0 640 130" aria-hidden="true" focusable="false">
+              <defs>
+                <path id="arc-top" d="M 70 34 Q 320 122 570 34" fill="none"></path>
+                <path id="arc-bottom" d="M 96 66 Q 320 146 544 66" fill="none"></path>
+              </defs>
+              <text class="felt-arc-major"><textPath href="#arc-top" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text>
+              <text class="felt-arc-minor"><textPath href="#arc-bottom" startOffset="50%" text-anchor="middle">DEALER MUST STAND ON ALL 17s</textPath></text>
+            </svg>
+
+            <p class="felt-status" id="dealer-note">The agent conditions on the upcard only.</p>
+
+            <div class="seat seat-player">
+              <div class="hand" id="player-hand"></div>
+              <div class="seat-head">
+                <span class="seat-name">Agent</span>
+                <span class="seat-total" id="player-total">—</span>
+              </div>
+            </div>
+
+            <p class="felt-outcome" id="outcome-note">Deal a hand to start.</p>
+          </div>
+        </div>
+
+        <div class="card-surface brain">
+          <span class="label">What the agent sees</span>
+          <div class="tuple" id="state-tuple">
+            <span class="tuple-paren">(</span><span class="tuple-v" id="tv-sum">–</span><span
+            class="tuple-sep">,</span><span class="tuple-v" id="tv-up">–</span><span
+            class="tuple-sep">,</span><span class="tuple-v" id="tv-ace">–</span><span class="tuple-paren">)</span>
+          </div>
+          <div class="tuple-legend">
+            <span>player sum</span><span>dealer upcard</span><span>usable ace</span>
+          </div>
+
+          <span class="label label-spaced">Action values</span>
+          <div class="qbars" id="qbars">
+            <div class="qbar" data-action="hit">
+              <span class="qbar-name">hit</span>
+              <div class="qbar-track"><div class="qbar-fill" id="qfill-hit"></div></div>
+              <span class="qbar-val" id="qval-hit">—</span>
+            </div>
+            <div class="qbar" data-action="stand">
+              <span class="qbar-name">stand</span>
+              <div class="qbar-track"><div class="qbar-fill" id="qfill-stand"></div></div>
+              <span class="qbar-val" id="qval-stand">—</span>
+            </div>
+          </div>
+
+          <p class="verdict" id="verdict">Waiting for a hand.</p>
+          <p class="fallback-flag" id="fallback-flag" hidden>
+            Never visited in training — falling back to the built-in
+            “hit below 17” heuristic.
+          </p>
+        </div>
+
+        <div class="card-surface controls">
+          <div class="actionbar">
+            <div class="btn-row">
+              <button class="btn btn-primary" id="btn-deal">Deal</button>
+              <button class="btn" id="btn-step" disabled>Step</button>
+              <button class="btn" id="btn-hit" disabled hidden>Hit</button>
+              <button class="btn" id="btn-stand" disabled hidden>Stand</button>
+              <button class="btn" id="btn-auto">Auto-play</button>
+            </div>
+
+            <div class="actionbar-right">
+              <label class="slider-row" for="speed">
+                <span class="label">Pace</span>
+                <input type="range" id="speed" min="120" max="1600" step="20" value="600">
+                <span class="slider-val" id="speed-val">600ms</span>
+              </label>
+
+              <div class="control-row">
+                <span class="label">Decisions by</span>
+                <div class="segmented segmented-sm" role="radiogroup" aria-label="Who decides">
+                  <button class="seg is-on" role="radio" aria-checked="true" data-decider="agent">Agent</button>
+                  <button class="seg" role="radio" aria-checked="false" data-decider="human">You</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tally" id="tally">
+            <div class="tally-cell"><span class="tally-n" id="t-hands">0</span><span class="tally-l">hands</span></div>
+            <div class="tally-cell"><span class="tally-n" id="t-wins">0</span><span class="tally-l">won</span></div>
+            <div class="tally-cell"><span class="tally-n" id="t-losses">0</span><span class="tally-l">lost</span></div>
+            <div class="tally-cell"><span class="tally-n" id="t-pushes">0</span><span class="tally-l">pushed</span></div>
+            <div class="tally-cell"><span class="tally-n" id="t-net">0.00</span><span class="tally-l">net units</span></div>
+          </div>
+          <p class="agree-note" id="agree-note" hidden></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= POLICY ================= -->
+    <section class="panel" id="panel-policy" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Learned policy</h2>
+          <p class="panel-sub">Every state the agent can be in, coloured by the action it would take.
+             Saturation is <code>Q(hit) − Q(stand)</code> — how sure it is.</p>
+        </div>
+        <div class="panel-controls">
+          <div class="segmented segmented-sm" role="radiogroup" aria-label="Hand type">
+            <button class="seg is-on" role="radio" aria-checked="true" data-hand="hard">Hard</button>
+            <button class="seg" role="radio" aria-checked="false" data-hand="soft">Soft</button>
+          </div>
+          <label class="check"><input type="checkbox" id="chk-basic"> Mark divergence from basic strategy</label>
+        </div>
+      </div>
+
+      <div class="card-surface grid-wrap">
+        <div class="plot">
+          <span class="axis-title axis-title-x">Dealer upcard</span>
+          <span class="axis-title axis-title-y">Player sum</span>
+          <div id="policy-grid" class="grid"></div>
+        </div>
+        <div class="legend" id="policy-legend">
+          <div class="legend-scale">
+            <span class="legend-end" data-pole="stand">stand</span>
+            <div class="legend-ramp" id="legend-ramp"></div>
+            <span class="legend-end" data-pole="hit">hit</span>
+          </div>
+          <div class="legend-keys">
+            <span class="legend-key"><i class="swatch swatch-unlearned"></i> never visited (heuristic)</span>
+            <span class="legend-key"><i class="swatch swatch-diverge"></i> differs from basic strategy</span>
+          </div>
+        </div>
+      </div>
+
+      <details class="table-view">
+        <summary>Table view</summary>
+        <div class="table-scroll"><table id="policy-table"></table></div>
+      </details>
+    </section>
+
+    <!-- ================= TRAINING ================= -->
+    <section class="panel" id="panel-training" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Train</h2>
+          <p class="panel-sub">Episodes run in the C++ server on a worker thread. The grid on the right
+             is the live policy — watch it resolve out of noise.</p>
+        </div>
+        <div class="panel-controls">
+          <label class="field"><span class="label">Episodes</span>
+            <input type="number" id="train-episodes" value="100000" min="1000" max="2000000" step="1000">
+          </label>
+          <label class="check"><input type="checkbox" id="chk-reset" checked> Start from scratch</label>
+          <button class="btn btn-primary" id="btn-train">Start</button>
+          <button class="btn" id="btn-train-stop" disabled>Stop</button>
+          <button class="btn" id="btn-save">Save q-table</button>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat"><span class="stat-n" id="s-progress">0</span><span class="stat-l">episodes run</span></div>
+        <div class="stat"><span class="stat-n" id="s-ev">—</span><span class="stat-l">avg reward, last window</span></div>
+        <div class="stat"><span class="stat-n" id="s-winrate">—</span><span class="stat-l">win rate, last window</span></div>
+        <div class="stat"><span class="stat-n" id="s-epsilon">—</span><span class="stat-l">epsilon</span></div>
+        <div class="stat"><span class="stat-n" id="s-states">—</span><span class="stat-l">states learned</span></div>
+      </div>
+
+      <div class="train-grid">
+        <div class="card-surface chart-block">
+          <div class="chart-head">
+            <h3>Average reward</h3>
+            <span class="chart-unit">units per hand — the metric that matters</span>
+          </div>
+          <canvas id="chart-ev" height="190"></canvas>
+
+          <div class="chart-head chart-head-2">
+            <h3>Win rate</h3>
+            <span class="chart-unit">wins ÷ decided hands · capped near 44% by the rules</span>
+          </div>
+          <canvas id="chart-winrate" height="150"></canvas>
+
+          <div class="chart-head chart-head-2">
+            <h3>Exploration</h3>
+            <span class="chart-unit">epsilon — probability of a random action</span>
+          </div>
+          <canvas id="chart-epsilon" height="130"></canvas>
+          <p class="chart-x">episodes</p>
+        </div>
+
+        <div class="card-surface mini-wrap">
+          <div class="chart-head"><h3>Policy, live</h3><span class="chart-unit">hard totals</span></div>
+          <div id="mini-grid" class="grid grid-mini"></div>
+          <p class="mini-note" id="mini-note">Start training to watch the table fill in.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= COMPARE ================= -->
+    <section class="panel" id="panel-compare" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Q-learning vs Monte Carlo</h2>
+          <p class="panel-sub">Same rules, same deck, two update rules. Both play greedily.</p>
+        </div>
+        <div class="panel-controls">
+          <label class="field"><span class="label">Hands each</span>
+            <input type="number" id="cmp-games" value="50000" min="1000" max="500000" step="1000">
+          </label>
+          <button class="btn btn-primary" id="btn-compare">Run</button>
+        </div>
+      </div>
+
+      <div id="compare-body" class="compare-body">
+        <p class="empty">No run yet. Deal a batch to compare the two agents.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip" role="status" aria-live="polite" hidden></div>
+
+<script>window.BLACKJACK_WASM = true;</script>
+<script src="blackjack.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

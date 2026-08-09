@@ -17,10 +17,22 @@ private:
     // Q-table: State → [Q(s,HIT), Q(s,STAND)]
     std::unordered_map<State, std::array<double, 2>, StateHash> qTable;
 
+    // Visits per (state, action). Drives the decaying learning rate, and is
+    // worth having anyway as a confidence signal for analysis.
+    std::unordered_map<State, std::array<int, 2>, StateHash> visitCounts;
+
+    // Exponent on the 1/n learning-rate schedule. Must stay in (0.5, 1] for
+    // Robbins-Monro convergence; lower means faster forgetting.
+    static constexpr double LEARNING_RATE_EXPONENT = 0.7;
+
     // Hyperparameters
-    double alpha;      // Learning rate (0.1)
-    double gamma;      // Discount factor (0.9)
-    double epsilon;    // Exploration rate (start 1.0 → decay to 0.05)
+    double alpha;      // Minimum learning rate. The step size is
+                       // max(alpha, 1/visits^0.7), so alpha is the floor that
+                       // keeps the agent adaptive rather than a constant rate.
+    double gamma;      // Discount factor (1.0 — blackjack is episodic and
+                       // undiscounted: a hand's payout is worth the same
+                       // whether it took one hit or four)
+    double epsilon;    // Exploration rate (start 1.0 → decay to a 0.05 floor)
 
     // Training stats
     int episodeCount;
@@ -31,7 +43,7 @@ private:
     std::uniform_real_distribution<double> dist;
 
 public:
-    QLearningAI(double alpha = 0.1, double gamma = 0.9, double epsilon = 1.0);
+    QLearningAI(double alpha = 0.01, double gamma = 1.0, double epsilon = 1.0);
 
     // ε-greedy action selection
     Action chooseAction(const State& state);
@@ -52,6 +64,7 @@ public:
 
     // Getters/Setters
     double getQValue(const State& state, Action action) const;
+    int getVisitCount(const State& state, Action action) const;
     void setEpsilon(double newEpsilon);
     void setAlpha(double newAlpha);
     void setGamma(double newGamma);

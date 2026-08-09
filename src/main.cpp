@@ -337,7 +337,7 @@ void compareAIs(QLearningAI& qLearning, MonteCarloAI& monteCarlo) {
 
 int main() {
     // Initialize AI agents with default hyperparameters
-    QLearningAI qLearningAI(0.1, 0.9, 1.0); // alpha=0.1, gamma=0.9, epsilon=1.0
+    QLearningAI qLearningAI(0.01, 1.0, 1.0); // alpha floor=0.01, gamma=1.0, epsilon=1.0
     MonteCarloAI monteCarloAI(0.1, 1.0);     // epsilon=0.1, gamma=1.0
 
     // Try to load existing Q-tables on startup

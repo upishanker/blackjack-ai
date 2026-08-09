@@ -3,6 +3,7 @@
 //
 
 #include "../../include/core/Game.h"
+#include "../../include/core/Rules.h"
 #include <iostream>
 #include <limits>
 #include <iomanip>
@@ -135,68 +136,18 @@ void Game::playRound() {
 // ============================================================================
 // AI TRAINING METHODS
 // ============================================================================
+// State encoding and payout live in rules:: so that HandSession (which drives
+// the web demo one action at a time) shares them byte-for-byte with the CLI.
 State Game::getAIState(const Player& player) const {
-    State state;
-
-    // Get dealer's upcard
     const auto& dealerHand = dealer.getHand();
     if (dealerHand.empty()) {
         throw std::runtime_error("Dealer has no cards!");
     }
-    state.dealerUpcard = dealerHand[0].getValue();
-
-    // Calculate player hand value with proper ace handling
-    int value = 0;
-    int aceCount = 0;
-
-    for (const Card& card : player.getHand()) {
-        value += card.getValue();
-        if (card.getRank() == Rank::Ace) {
-            aceCount++;
-        }
-    }
-
-    // Adjust for aces (same logic as Player::getHandValue())
-    while (value > 21 && aceCount > 0) {
-        value -= 10;
-        aceCount--;
-    }
-
-    state.playerSum = value;
-
-    // Usable ace = we have an ace AND it's currently counted as 11
-    // This means: (1) we have an ace, (2) value <= 21, (3) we haven't converted all aces to 1
-    state.usableAce = (aceCount > 0 && value <= 21);
-
-    return state;
+    return rules::computeState(player.getHand(), dealerHand[0]);
 }
 
 double Game::calculateReward(const Player& player) const {
-    int playerValue = player.getHandValue();
-    int dealerValue = dealer.getHandValue();
-
-    if (player.hasBlackjack() && !dealer.hasBlackjack()) {
-        return 1.5;  // Blackjack pays 3:2
-    }
-
-    // Player busted
-    if (player.isBusted()) {
-        return -1.0;
-    }
-
-    // Dealer busted, player didn't
-    if (dealer.isBusted()) {
-        return 1.0;
-    }
-
-    // Compare values
-    if (playerValue > dealerValue) {
-        return 1.0;  // Win
-    } else if (playerValue < dealerValue) {
-        return -1.0; // Loss
-    } else {
-        return 0.0;  // Push
-    }
+    return rules::computeReward(player, dealer);
 }
 
 double Game::playAIEpisode(QLearningAI& ai, bool training) {
@@ -226,12 +177,11 @@ double Game::playAIEpisode(QLearningAI& ai, bool training) {
         aiPlayer.addCard(deck.dealCard());
         State nextState = getAIState(aiPlayer);
 
-        if (training) {
-            double stepReward = aiPlayer.isBusted() ? -1.0 : -0.01;
-            ai.updateQValue(currentState, action, stepReward, nextState, aiPlayer.isBusted());
-        }
-
-        // If busted, immediate penalty
+        // Exactly one update per transition. Drawing carries no intrinsic
+        // reward -- the only real reward is the terminal payout, so an
+        // intermediate hit gets 0.0 and its value comes from bootstrapping.
+        // (A per-hit penalty here is not potential-based shaping: it changes
+        // the optimal policy, biasing the agent towards standing.)
         if (aiPlayer.isBusted()) {
             if (training) {
                 ai.updateQValue(currentState, action, -1.0, nextState, true);
@@ -239,7 +189,6 @@ double Game::playAIEpisode(QLearningAI& ai, bool training) {
             return -1.0;
         }
 
-        // Non-terminal step (reward = 0 for intermediate steps)
         if (training) {
             ai.updateQValue(currentState, action, 0.0, nextState, false);
         }
@@ -353,9 +302,10 @@ double Game::playMonteCarloEpisode(MonteCarloAI& ai, bool training) {
             break;
         }
 
-        // HIT
+        // HIT -- no step penalty, for the same reason as playAIEpisode: the
+        // only real reward in blackjack is the terminal payout.
         if (training) {
-            ai.recordStep(currentState, action, -0.01); // Small step penalty
+            ai.recordStep(currentState, action, 0.0);
         }
 
         aiPlayer.addCard(deck.dealCard());

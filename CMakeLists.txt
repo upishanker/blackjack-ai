@@ -12,67 +12,42 @@ else()
 endif()
 
 # Find required packages
-find_package(OpenCV REQUIRED)
-find_package(SQLite3 REQUIRED)
+find_package(Threads REQUIRED)
 
 # Include directories
 include_directories(
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/include/core
         ${CMAKE_SOURCE_DIR}/include/ai
-        ${CMAKE_SOURCE_DIR}/include/db
-        ${CMAKE_SOURCE_DIR}/include/gui
-        ${CMAKE_SOURCE_DIR}/include/utils
-        ${OpenCV_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/third_party
 )
 
-# Core source files
+# Core source files, shared by the CLI and the web server
 set(CORE_SOURCES
         src/core/Card.cpp
         src/core/Deck.cpp
         src/core/Player.cpp
         src/core/Dealer.cpp
+        src/core/Rules.cpp
+        src/core/HandSession.cpp
         src/core/Game.cpp
         src/ai/QLearningAI.cpp
         src/ai/MonteCarloAI.cpp
+        src/api/Api.cpp
 )
 
-# AI source files
-set(AI_SOURCES
-        src/ai/QLearningAI.cpp
-        # src/ai/MonteCarloAI.cpp  # Uncomment when implemented
-)
-
-# Database source files (when implemented)
-set(DB_SOURCES
-        # src/db/Database.cpp  # Uncomment when implemented
-)
-
-# GUI source files (when implemented)
-set(GUI_SOURCES
-        # src/gui/BlackjackGUI.cpp  # Uncomment when implemented
-)
-
-# Utility source files (when implemented)
-set(UTILS_SOURCES
-        # src/utils/Logger.cpp  # Uncomment when implemented
-)
-
-# Main executable
+# Interactive CLI (menu-driven)
 add_executable(blackjack_ai
         src/main.cpp
         ${CORE_SOURCES}
-        ${AI_SOURCES}
-        ${DB_SOURCES}
-        ${GUI_SOURCES}
-        ${UTILS_SOURCES}
 )
 
-# Link libraries
-target_link_libraries(blackjack_ai
-        ${OpenCV_LIBS}
-        SQLite::SQLite3
+# Web demo server (serves web/ and the JSON API over the same core)
+add_executable(blackjack_server
+        src/server/main.cpp
+        ${CORE_SOURCES}
 )
+target_link_libraries(blackjack_server PRIVATE Threads::Threads)
 
 # Create data directory for Q-table storage
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/data)
@@ -82,9 +57,9 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/data)
     file(COPY ${CMAKE_SOURCE_DIR}/data DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
-# Optional: Copy assets directory (for card images when GUI is implemented)
-if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
-    file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
+# Copy the web demo's static assets next to the server binary
+if(EXISTS ${CMAKE_SOURCE_DIR}/web)
+    file(COPY ${CMAKE_SOURCE_DIR}/web DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
 # Testing (optional - uncomment when you add tests)
@@ -92,9 +67,9 @@ endif()
 # add_subdirectory(tests)
 
 # Installation rules (optional)
-install(TARGETS blackjack_ai DESTINATION bin)
+install(TARGETS blackjack_ai blackjack_server DESTINATION bin)
 install(DIRECTORY data/ DESTINATION share/blackjack_ai/data)
-install(DIRECTORY assets/ DESTINATION share/blackjack_ai/assets OPTIONAL)
+install(DIRECTORY web/ DESTINATION share/blackjack_ai/web OPTIONAL)
 
 # Print configuration summary
 message(STATUS "=================================")
@@ -102,8 +77,7 @@ message(STATUS "Blackjack AI Configuration")
 message(STATUS "=================================")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "OpenCV Version: ${OpenCV_VERSION}")
-message(STATUS "SQLite3 Found: ${SQLite3_FOUND}")
+message(STATUS "Targets: blackjack_ai (CLI), blackjack_server (web demo)")
 message(STATUS "Source Directory: ${CMAKE_SOURCE_DIR}")
 message(STATUS "Binary Directory: ${CMAKE_BINARY_DIR}")
 message(STATUS "=================================")

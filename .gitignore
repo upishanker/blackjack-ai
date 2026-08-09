@@ -8,7 +8,10 @@ out/
 *.so
 *.a
 *.exe
+*.d
+bin/
 blackjack_ai
+blackjack_server
 
 # IDE files
 .vscode/

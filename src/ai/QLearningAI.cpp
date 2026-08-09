@@ -8,6 +8,7 @@
 #include <iostream>
 #include <algorithm>
 #include <iomanip>
+#include <cmath>
 
 QLearningAI::QLearningAI(double alpha, double gamma, double epsilon)
     : alpha(alpha), gamma(gamma), epsilon(epsilon),
@@ -64,10 +65,34 @@ void QLearningAI::updateQValue(const State& state,
     }
     // If terminal, maxNextQ stays 0.0
 
+    // Decaying, per-(state,action) learning rate.
+    //
+    // A constant alpha makes Q(s,a) an exponential moving average over roughly
+    // the last 1/alpha samples -- at alpha=0.1, about ten hands. Blackjack
+    // rewards are +-1, so those estimates never tighten below a spread of
+    // several tenths, which is larger than the gap between the two actions in
+    // the states that matter. The greedy policy then picks by noise, and a
+    // state the policy stops visiting keeps whatever stale value it froze at.
+    //
+    // Robbins-Monro asks for step sizes that sum to infinity but whose squares
+    // converge. 1/n does that but forgets too slowly to track the moving
+    // bootstrap target, so the exponent is backed off to 0.7 -- still summable,
+    // still adaptive. (Monte Carlo's exact 1/N sample mean is the same idea.)
+    int n = ++visitCounts[state][static_cast<int>(action)];
+    double lr = std::max(alpha, 1.0 / std::pow(n, LEARNING_RATE_EXPONENT));
+
     // Q-learning update: Q(s,a) ← Q(s,a) + α[r + γ max Q(s',a') - Q(s,a)]
-    double newQ = currentQ + alpha * (reward + gamma * maxNextQ - currentQ);
+    double newQ = currentQ + lr * (reward + gamma * maxNextQ - currentQ);
 
     qTable[state][static_cast<int>(action)] = newQ;
+}
+
+int QLearningAI::getVisitCount(const State& state, Action action) const {
+    auto it = visitCounts.find(state);
+    if (it == visitCounts.end()) {
+        return 0;
+    }
+    return it->second[static_cast<int>(action)];
 }
 
 void QLearningAI::saveQTable(const std::string& filename) const {
@@ -78,17 +103,20 @@ void QLearningAI::saveQTable(const std::string& filename) const {
         return;
     }
 
-    // Write header
-    file << "playerSum,dealerUpcard,usableAce,action,qValue\n";
+    // Write header. visitCount is a sixth column; the loader still accepts
+    // five-column files written before it existed.
+    file << "playerSum,dealerUpcard,usableAce,action,qValue,visitCount\n";
 
     // Write Q-table entries
     for (const auto& [state, qValues] : qTable) {
+        auto visits = visitCounts.find(state);
         for (int a = 0; a < 2; ++a) {
             file << state.playerSum << ","
                  << state.dealerUpcard << ","
                  << state.usableAce << ","
                  << a << ","
-                 << std::fixed << std::setprecision(6) << qValues[a] << "\n";
+                 << std::fixed << std::setprecision(6) << qValues[a] << ","
+                 << (visits == visitCounts.end() ? 0 : visits->second[a]) << "\n";
         }
     }
 
@@ -106,6 +134,7 @@ void QLearningAI::loadQTable(const std::string& filename) {
     }
 
     qTable.clear();
+    visitCounts.clear();
 
     std::string line;
     std::getline(file, line); // Skip header
@@ -137,6 +166,14 @@ void QLearningAI::loadQTable(const std::string& filename) {
         qValue = std::stod(token);
 
         qTable[state][action] = qValue;
+
+        // Sixth column is optional: files saved before visit counts existed
+        // simply resume with a count of zero, which restarts the learning-rate
+        // schedule for that pair rather than failing to load.
+        if (std::getline(ss, token, ',') && !token.empty()) {
+            visitCounts[state][action] = std::stoi(token);
+        }
+
         loadedStates++;
     }
 
@@ -164,7 +201,11 @@ void QLearningAI::setGamma(double newGamma) {
 }
 
 void QLearningAI::decayEpsilon(double decayRate) {
-    epsilon = std::max(0.01, epsilon * decayRate); // Don't go below 5% exploration
+    // Q-learning is off-policy, so exploration never biases what it converges
+    // to -- it only buys state coverage. Keeping a 5% floor means rare states
+    // (low totals, soft hands) keep getting revisited instead of freezing at
+    // whatever noise they held when epsilon bottomed out.
+    epsilon = std::max(0.05, epsilon * decayRate);
 }
 
 void QLearningAI::recordEpisode(double reward) {
