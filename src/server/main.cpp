@@ -94,6 +94,16 @@ int main(int argc, char** argv) {
 
     svr.set_mount_point("/", "./web");
 
+    // Never let a browser cache the static assets during development. index.html
+    // and app.js are edited together and depend on each other, so serving a
+    // stale one against a fresh other renders a subtly broken page instead of
+    // failing loudly. (The published build solves this by hashing asset URLs.)
+    svr.set_post_routing_handler([](const httplib::Request&, httplib::Response& res) {
+        if (res.get_header_value("Cache-Control").empty()) {
+            res.set_header("Cache-Control", "no-store, must-revalidate");
+        }
+    });
+
     // Bind with SO_REUSEADDR only. httplib defaults to adding SO_REUSEPORT,
     // which lets a second server silently bind the same port -- the kernel then
     // load-balances between the two, so half your requests hit a stale process

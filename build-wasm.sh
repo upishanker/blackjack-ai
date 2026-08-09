@@ -53,9 +53,10 @@ cp web/style.css web/app.js "$OUT/"
 # them in web/index.html keeps the dev build free of 404s for files that only
 # exist in the static build.
 python3 - "$OUT" <<'PY'
-import re, sys, pathlib
+import hashlib, re, sys, pathlib
 out = pathlib.Path(sys.argv[1])
 html = pathlib.Path('web/index.html').read_text()
+
 inject = (
     '<script>window.BLACKJACK_WASM = true;</script>\n'
     '<script src="blackjack.js"></script>'
@@ -63,6 +64,21 @@ inject = (
 html, n = re.subn(r'<!-- wasm-scripts:.*?-->', inject, html, count=1, flags=re.S)
 if n != 1:
     sys.exit('could not find the wasm-scripts marker in web/index.html')
+
+# Cache-bust every asset by content hash.
+#
+# GitHub Pages serves these with a long max-age, so without this a returning
+# visitor can end up running a cached app.js against a freshly deployed
+# index.html. That mismatch is not hypothetical: app.js reads layout hints out
+# of the markup, so a stale pair renders a blank page rather than failing
+# loudly. Hashing the filenames in the URL makes a redeploy unmissable.
+def stamp(name):
+    data = (out / name).read_bytes()
+    return f'{name}?v={hashlib.sha256(data).hexdigest()[:10]}'
+
+for asset in ('style.css', 'app.js', 'blackjack.js'):
+    html = html.replace(f'"{asset}"', f'"{stamp(asset)}"')
+
 (out / 'index.html').write_text(html)
 PY
 
