@@ -497,12 +497,29 @@ function renderPolicy() {
 
 /* ========================================================== TRAINING ===== */
 
+// Sizes the backing bitmap for the display density and returns a context whose
+// coordinates are CSS pixels.
+//
+// The logical height comes from data-h, never from canvas.height: assigning to
+// canvas.height rewrites that same attribute, so reading it back would multiply
+// by devicePixelRatio on every redraw and stretch the chart a little further
+// each time. The CSS height is pinned for the same reason — with width:100% and
+// an auto height, the element's aspect ratio would follow the bitmap.
 function chartCtx(canvas) {
   const dpr = window.devicePixelRatio || 1;
+  const h = Number(canvas.dataset.h) || 180;
+  canvas.style.height = `${h}px`;
+
   const w = canvas.clientWidth;
-  const h = Number(canvas.getAttribute('height'));
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
+  if (w < 2) return null;             // panel hidden; nothing meaningful to draw
+
+  const bw = Math.round(w * dpr);
+  const bh = Math.round(h * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
+
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -516,7 +533,9 @@ function css(name) {
 // A single-series line chart. Two measures on different scales get two of
 // these stacked, never one chart with two y-axes.
 function drawLine(canvas, points, accessor, opts) {
-  const { ctx, w, h } = chartCtx(canvas);
+  const sized = chartCtx(canvas);
+  if (!sized) return;
+  const { ctx, w, h } = sized;
   const padL = 46, padR = 12, padT = 10, padB = 22;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
@@ -532,8 +551,9 @@ function drawLine(canvas, points, accessor, opts) {
   ctx.font = '10px ui-monospace, monospace';
   ctx.textBaseline = 'middle';
 
-  // Recessive gridlines and axis labels.
-  const ticks = 4;
+  // Recessive gridlines and axis labels. Tick count is per-chart so each axis
+  // lands on round numbers.
+  const ticks = opts.ticks || 4;
   for (let i = 0; i <= ticks; i++) {
     const v = yMin + ((yMax - yMin) * i) / ticks;
     const y = padT + plotH - (plotH * i) / ticks;
@@ -575,6 +595,13 @@ function drawLine(canvas, points, accessor, opts) {
   const px = (p) => padL + (p.episode / xMax) * plotW;
   const py = (p) => padT + plotH - ((accessor(p) - yMin) / (yMax - yMin)) * plotH;
 
+  // Clip to the plot rectangle. A noisy window can briefly leave the axis
+  // range, and without this the stroke would run across the tick labels.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padL, padT, plotW, plotH);
+  ctx.clip();
+
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
@@ -588,23 +615,27 @@ function drawLine(canvas, points, accessor, opts) {
   ctx.beginPath();
   ctx.arc(px(last), py(last), 3, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.restore();
 }
 
 function redrawCharts() {
   const pts = state.training.points;
   // Basic strategy's EV under these rules, drawn as the target line so the
   // curve is read against the achievable ceiling rather than against zero.
+  // Range covers what a window actually produces: an untrained agent bottoms
+  // out near -0.34, and a lucky window can run slightly positive.
   drawLine($('chart-ev'), pts, (p) => p.avgReward, {
-    color: css('--stand'), yMin: -0.35, yMax: 0.05, fmt: (v) => v.toFixed(2),
+    color: css('--stand'), yMin: -0.4, yMax: 0.2, ticks: 6, fmt: (v) => v.toFixed(1),
     reference: state.baselineEV === null
       ? null
       : { value: state.baselineEV, label: 'basic strategy' },
   });
   drawLine($('chart-winrate'), pts, (p) => p.winRate, {
-    color: css('--ink-2'), yMin: 0, yMax: 0.6, fmt: (v) => `${(v * 100).toFixed(0)}%`,
+    color: css('--ink-2'), yMin: 0, yMax: 0.6, ticks: 6, fmt: (v) => `${(v * 100).toFixed(0)}%`,
   });
   drawLine($('chart-epsilon'), pts, (p) => p.epsilon, {
-    color: css('--hit'), yMin: 0, yMax: 1, fmt: (v) => v.toFixed(2),
+    color: css('--hit'), yMin: 0, yMax: 1, ticks: 4, fmt: (v) => v.toFixed(2),
   });
 }
 
