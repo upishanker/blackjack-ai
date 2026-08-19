@@ -340,12 +340,14 @@ Current implementation:
 - Dealer stands on all 17s, **including soft 17** (`Dealer::playTurn` hits while
   the total is under 17, and does not distinguish soft totals)
 - Blackjack pays **3:2** — a natural returns a reward of `+1.5`
-  (`Game::calculateReward`)
+  (`Game::calculateReward`, which delegates to `rules::computeReward`)
 - Single 52-card deck, reshuffled every hand
 - No splitting or doubling down (future feature), so the action space is just
   `HIT` / `STAND`
-- Training applies a `-0.01` step penalty per hit, which nudges the agent away
-  from drawing without cause
+- No reward shaping: an intermediate hit carries a reward of `0.0`, and the only
+  reward is the terminal payout. An earlier version applied a `-0.01` per-hit
+  penalty; it was removed because it biases the policy towards standing (see
+  [Why these values](#why-these-values))
 
 ## 📊 Understanding the Output
 
