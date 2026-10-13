@@ -1,39 +1,23 @@
-# 🎰 Blackjack AI:
+# Blackjack AI
 
-A comprehensive Blackjack simulation engine featuring two competing reinforcement learning agents: **Q-Learning** and **Monte Carlo**. Watch AI agents learn optimal Blackjack strategy through 100,000+ training episodes.
+Two reinforcement learning agents, **Q-learning** and **Monte Carlo control**,
+learn Blackjack strategy in a C++17 engine and are measured against published
+basic strategy.
 
-![C++](https://img.shields.io/badge/C++-17-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
-
-## 🎯 Project Overview
-
-This project implements a fully-functional Blackjack game with two AI agents that learn to play through reinforcement learning:
-
-- **Q-Learning AI**: Uses temporal difference learning for fast convergence
-- **Monte Carlo AI**: Uses episodic learning with complete episode returns
+**Live demo:** https://upishanker.github.io/blackjack-ai/ (the engine compiled
+to WebAssembly, running in your browser)
 
 Both agents learn over the classic Sutton & Barto state representation —
 `(player sum, dealer upcard, usable ace)` — with a two-action space, `HIT` and
-`STAND`.
+`STAND`. The committed Q-tables in `data/` were each trained for 2,000,000
+episodes.
 
-There are two front ends over the same engine: the interactive CLI, and a
+There are two front ends over the same engine: an interactive CLI, and a
 **browser demo** that shows the learned policy as a strategy grid, plays hands
 one decision at a time with live Q-values, and trains the agent while you watch
-the table converge. See [Web Demo](#-web-demo).
+the table converge. See [Web Demo](#web-demo).
 
-## ✨ Features
-
-- 🃏 **Complete Blackjack Engine**: Full game logic with dealer AI following standard casino rules
-- 🤖 **Dual AI Implementations**: Q-Learning and Monte Carlo reinforcement learning agents
-- 📊 **Training Pipeline**: Configurable training with progress tracking and statistics
-- 💾 **Q-Table Persistence**: Save and load trained models via CSV files
-- 🎮 **Interactive Menu**: Play as human or watch/train AI agents
-- 🌐 **Web Demo**: Policy heat map, step-by-step play, live training curves, agent comparison
-- 📈 **Performance Analytics**: Comprehensive evaluation and comparison tools
-- ⚙️ **Hyperparameter Tuning**: Adjustable learning rates, discount factors, and exploration rates
-
-## 🏆 Performance Metrics
+## Performance Metrics
 
 **Average reward is the metric, not win rate.** Win rate is capped near 44% by
 the rules — you lose immediately when you bust, no matter what the dealer then
@@ -65,14 +49,13 @@ visited states (soft hands get ~3,000 visits where hard 16 gets ~80,000).
 A negative average reward is expected. Without doubling or splitting there is no
 positive-EV strategy here; the agents learn to lose slowly, not to win.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - **C++17** compatible compiler (GCC 7+, Clang 5+, MSVC 2017+)
-- **CMake** 3.20 or higher — *optional*, see the CMake-free path below
+- **CMake** 3.20+ *or* **Make** — either one builds it
 - **Emscripten** — only to rebuild the hosted WebAssembly bundle
-- **Make**
 
 No third-party libraries are required. The web server uses
 [cpp-httplib](https://github.com/yhirose/cpp-httplib), a single MIT-licensed
@@ -106,7 +89,7 @@ make -f build.mk          # produces bin/blackjack_ai and bin/blackjack_server
 > Both binaries resolve `data/` and `web/` relative to the working directory,
 > so launch them from the repository root.
 
-## 🌐 Web Demo
+## Web Demo
 
 ```bash
 make -f build.mk run-server     # then open http://localhost:8080
@@ -205,85 +188,26 @@ simulations stay responsive while the server's training thread runs. In the
 single-threaded WebAssembly build those locks are uncontended no-ops.
 
 
-## 🎮 Usage Guide
+## Usage Guide
 
-### Main Menu Options
+### CLI
 
-```
-1.  Play Blackjack (Human)           - Play against the dealer yourself
-2.  Train Q-Learning AI              - Train the Q-Learning agent
-3.  Evaluate Q-Learning AI           - Test Q-Learning performance
-4.  Watch Q-Learning AI Play         - Observe 10 demo games
-5.  Load Q-Table                     - Load pre-trained Q-Learning model
-6.  Save Q-Table                     - Save Q-Learning model
-7.  View Q-Learning Statistics       - Display training metrics
-8.  Train Monte Carlo AI             - Train the Monte Carlo agent
-9.  Evaluate Monte Carlo AI          - Test Monte Carlo performance
-10. Load Monte Carlo Q-Table         - Load pre-trained Monte Carlo model
-11. Save Monte Carlo Q-Table         - Save Monte Carlo model
-12. View Monte Carlo Statistics      - Display training metrics
-13. Compare Q-Learning vs Monte Carlo - Head-to-head AI comparison
-14. Exit                             - Quit the program
-```
+`./bin/blackjack_ai` opens a numbered menu: play a hand yourself, and for each
+agent train, evaluate, watch it play, view its statistics, or load and save its
+Q-table. The last options compare the two agents head to head.
 
-### Quick Start: Training Your First AI
+The committed Q-tables load automatically on startup, so evaluation works
+without training first. To train from scratch, choose *Train Q-Learning AI*,
+enter an episode count (the committed tables used 2,000,000), then save to
+`data/q_table.csv`.
 
-1. **Launch the program**
-```bash
-./blackjack_ai
-```
-
-2. **Select option 2** (Train Q-Learning AI)
-
-3. **Enter training parameters**
-```
-Enter number of training episodes: 100000
-Show progress during training? (y/n): y
-```
-
-4. **Wait for training to complete** (~30 seconds for 100K episodes)
-
-5. **Save the trained model** (option 6)
-```
-Enter filename to save: data/q_table.csv
-```
-
-6. **Evaluate performance** (option 3)
-```
-Enter number of evaluation games: 10000
-```
-
-### Example Training Session
-
-```bash
-$ ./blackjack_ai
-
-=========================
-   Blackjack with AI
-=========================
-Enter choice: 2
-
-Enter number of training episodes: 50000
-Show progress during training? (y/n): y
-
-=== Training Q-Learning AI ===
-Episode 10000/50000 | Wins: 3384 | Losses: 6104 | Avg Reward: -0.250
-Episode 20000/50000 | Wins: 7158 | Losses: 11702 | Avg Reward: -0.204
-...
-Episode 50000/50000 | Wins: 19305 | Losses: 27378 | Avg Reward: -0.138
-
-=== Training Complete ===
-Total Wins: 19305 (38.61%)
-Total Losses: 27378 (54.76%)
-Average Reward: -0.138
-```
-
-## ⚙️ Configuration & Tuning
+## Configuration & Tuning
 
 ### Modifying Hyperparameters
 
-Edit `src/main.cpp` lines 340-341 (the web server mirrors these constants at the
-top of `src/server/main.cpp`):
+Hyperparameters are the constructor arguments at the top of `main()` in
+`src/main.cpp` (the web server mirrors these constants at the top of
+`src/server/main.cpp`):
 
 ```cpp
 // Q-Learning: (alpha floor, gamma, epsilon start)
@@ -349,56 +273,19 @@ Current implementation:
   penalty; it was removed because it biases the policy towards standing (see
   [Why these values](#why-these-values))
 
-## 📊 Understanding the Output
+## Reading the Results
 
-### Training Statistics
+Evaluation reports win rate, win rate excluding pushes, and average reward per
+hand (+1 win, −1 loss, 0 push, +1.5 for a natural). Judge a policy by average
+reward, not win rate — see [Performance Metrics](#performance-metrics) for why
+every reasonable policy lands near the same win rate.
 
-```
-Episode 100000/100000 | Wins: 40711 | Losses: 52009 | Pushes: 7280 | Avg Reward: -0.089
-```
+At 10,000 hands the 95% interval on average reward is about ±0.02, wider than
+the gap between the two agents, so a CLI comparison at that size mostly
+measures noise. The web demo's *Compare* tab reports the interval alongside
+each result.
 
-- **Wins**: Games where AI beat the dealer
-- **Losses**: Games where AI lost to dealer
-- **Pushes**: Ties (same hand value)
-- **Avg Reward**: Mean reward per episode (+1 win, -1 loss, 0 push)
-
-### Evaluation Metrics
-
-```
-Win Rate: 43.19%           # Percentage of all games won
-Win Rate (vs losses): 47.07%  # Win percentage excluding pushes
-Average Reward: -0.0318    # Expected value per game
-```
-
-**Interpretation:**
-- Win rate **>42%** = Good performance
-- Win rate **>45%** = Excellent performance
-- Win rate **>48%** = Near-optimal (theoretical limit ~49%)
-
-## 🔬 Advanced Usage
-
-### Comparing AI Performance
-
-Use option 13 to run a comprehensive comparison:
-
-```bash
-Enter choice: 13
-Enter number of evaluation games: 10000
-
-========================================
-           COMPARISON RESULTS
-========================================
-Metric                  | Q-Learning    | Monte Carlo   | Winner
-------------------------|---------------|---------------|--------
-Win Rate                |        42.64% |        42.05% | Q-Learn
-Loss Rate               |        48.98% |        50.45% | Q-Learn
-Avg Reward              |         -0.04 |         -0.06 | Q-Learn
-
-Overall Score: Q-Learning 4 - 0 Monte Carlo
-Winner: Q-Learning AI! 🏆
-```
-
-### Loading Pre-Trained Models
+### Pre-Trained Models
 
 Pre-trained Q-tables are automatically loaded on startup from:
 - `data/q_table.csv` (Q-Learning)
